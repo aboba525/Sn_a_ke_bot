@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>🐍 Змейка: Фруктовая буря</title>
+  <title>🚀 Космическая змейка</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
@@ -9,20 +9,21 @@
       padding: 10px;
       text-align: center;
       font-family: 'Arial', sans-serif;
-      background: #0a0a0a;
-      color: #fff;
+      background: #000;
+      color: #0f0;
       touch-action: manipulation;
     }
     canvas {
       background: #000;
-      border: 2px solid #333;
+      border: 1px solid #333;
+      image-rendering: pixelated;
       display: block;
       margin: 20px auto;
     }
     #score {
       font-size: 24px;
       font-weight: bold;
-      margin: 10px;
+      color: #0f0;
     }
     #best {
       font-size: 18px;
@@ -37,7 +38,7 @@
       margin: 20px auto;
     }
     .btn {
-      background: #0095dd;
+      background: #0066cc;
       color: white;
       border: none;
       padding: 20px;
@@ -48,7 +49,7 @@
     button#restart-btn {
       padding: 12px 24px;
       font-size: 18px;
-      background: #28a745;
+      background: #00cc44;
       color: white;
       border: none;
       border-radius: 6px;
@@ -57,7 +58,7 @@
   </style>
 </head>
 <body>
-  <h1>🐍 Фруктовая змейка</h1>
+  <h1>🚀 КОСМИЧЕСКАЯ ЗМЕЙКА</h1>
   <div id="score">Очки: 0</div>
   <div id="best">Рекорд: 0</div>
   <canvas id="game" width="300" height="300"></canvas>
@@ -75,13 +76,11 @@
   <button id="restart-btn" onclick="restart()">Начать заново</button>
 
   <script>
-    // Telegram WebApp — безопасно
+    // Telegram WebApp
     const tg = window.Telegram?.WebApp;
     if (tg) {
-      try {
-        tg.ready();
-        tg.expand();
-      } catch (e) {}
+      tg.ready();
+      tg.expand();
     }
 
     // Элементы
@@ -94,32 +93,63 @@
     const gridSize = 15;
     const tileCount = 20;
 
-    // Фрукты
+    // Звёзды в фоне
+    const stars = [];
+    for (let i = 0; i < 50; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: Math.random() * 1.5,
+        a: Math.random()
+      });
+    }
+
+    // Фрукты-планеты
     const FRUITS = [
-      { emoji: "🍎", points: 10, weight: 6 },
-      { emoji: "🍌", points: 10, weight: 5 },
-      { emoji: "🥝", points: 10, weight: 5 },
-      { emoji: "🍒", points: 10, weight: 4 },
-      { emoji: "🍈", points: 50, weight: 2, big: true },
-      { emoji: "🍉", points: 50, weight: 2, big: true }
+      { emoji: "🪐", points: 10, weight: 5 },
+      { emoji: "🌍", points: 10, weight: 5 },
+      { emoji: "🪷", points: 10, weight: 4 },
+      { emoji: "☄️", points: 15, weight: 3 },
+      { emoji: "🛸", points: 25, weight: 2 },
+      { emoji: "🪸", points: 10, weight: 4 },
+      { emoji: "🍒", points: 10, weight: 6 },
+      { emoji: "🍉", points: 20, weight: 3 },
+      { emoji: "🍇", points: 10, weight: 5 },
+      { emoji: "🪻", points: 10, weight: 4 }
     ];
 
     // Состояние
     let snake = [{ x: 10, y: 10 }];
     let dx = 0, dy = 0;
     let score = 0;
-    let bestScore = parseInt(localStorage.getItem("snakeBest")) || 0;
+    let bestScore = parseInt(localStorage.getItem("spaceSnakeBest")) || 0;
     let food = null;
     let gameRunning = false;
     let gameStarted = false;
     let gameInterval;
     let popups = [];
+    let celebration = null; // Анимация уровня
+    let eatEffects = [];
 
     // Рекорд
     bestDisplay.textContent = `Рекорд: ${bestScore}`;
 
+    // Звук (тихий бип)
+    function playSound() {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.setValueAtTime(300, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    }
+
     // Всплывающие очки
-    function addPopup(x, y, text, color = "white") {
+    function addPopup(x, y, text, color = "#00ff00") {
       popups.push({
         x: x * gridSize + gridSize / 2,
         y: y * gridSize,
@@ -128,6 +158,28 @@
         alpha: 1,
         dy: -1.5
       });
+    }
+
+    // Эффект поедания
+    function addEatEffect(x, y) {
+      for (let i = 0; i < 8; i++) {
+        eatEffects.push({
+          x: x * gridSize + gridSize / 2,
+          y: y * gridSize + gridSize / 2,
+          dx: (Math.random() - 0.5) * 6,
+          dy: (Math.random() - 0.5) * 6,
+          alpha: 1,
+          r: Math.random() * 2 + 1
+        });
+      }
+    }
+
+    // Анимация праздника (каждые 100 очков)
+    function startCelebration() {
+      celebration = { text: "LEVEL UP 🚀", alpha: 1 };
+      setTimeout(() => {
+        if (celebration) celebration.alpha = 0;
+      }, 1500);
     }
 
     // Выбор фрукта
@@ -144,36 +196,36 @@
     // Анимация старта
     function showStartAnimation() {
       let step = 0;
-      const texts = ["просыпается...", "тянется...", "голодна!"];
-      
+      const texts = ["включаем двигатели...", "выход в эфир...", "змейка-корабль, старт!"];
       const anim = setInterval(() => {
-        ctx.fillStyle = "black";
+        drawSpace();
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        ctx.fillStyle = "lime";
+        ctx.fillStyle = "#00ff00";
         ctx.font = "20px Arial";
-        ctx.fillText("🐍 ЗМЕЙКА", 90, 120);
+        ctx.fillText("🚀 КОСМОС", 80, 120);
         
         ctx.fillStyle = "white";
         ctx.font = "16px Arial";
-        ctx.fillText(texts[step % 3], 95, 150);
+        ctx.fillText(texts[step % 3], 60, 150);
         
         step++;
-        if (step > 15) {
+        if (step > 12) {
           clearInterval(anim);
           draw();
           showHint();
         }
-      }, 200);
+      }, 250);
     }
 
     function showHint() {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "white";
       ctx.font = "18px Arial";
       ctx.fillText("Нажми стрелку", 90, 140);
-      ctx.fillText("чтобы начать", 90, 170);
+      ctx.fillText("для старта", 90, 170);
     }
 
     function placeFood() {
@@ -181,6 +233,7 @@
       food.x = Math.floor(Math.random() * tileCount);
       food.y = Math.floor(Math.random() * tileCount);
       
+      // Не на змейке
       for (let part of snake) {
         if (part.x === food.x && part.y === food.y) {
           placeFood();
@@ -188,31 +241,73 @@
       }
     }
 
-    function draw() {
+    function drawSpace() {
       ctx.fillStyle = "black";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Звёзды
+      stars.forEach(s => {
+        ctx.fillStyle = `rgba(255, 255, 255, ${s.a})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
 
-      // Змейка
-      ctx.fillStyle = "lime";
-      for (let part of snake) {
-        ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+    function draw() {
+      drawSpace();
+
+      // Змейка (цельная)
+      ctx.fillStyle = "#00ff00";
+      for (let i = 0; i < snake.length; i++) {
+        const part = snake[i];
+        ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize, gridSize);
+        if (i > 0) {
+          ctx.fillStyle = "#00cc00";
+        }
       }
+
+      // Голова — светится
+      const head = snake[0];
+      ctx.fillStyle = "#00ff00";
+      ctx.fillRect(head.x * gridSize, head.y * gridSize, gridSize, gridSize);
 
       // Фрукт
       if (food) {
-        ctx.font = food.big ? "24px Arial" : "18px Arial";
+        ctx.font = food.points >= 20 ? "24px Arial" : "18px Arial";
         ctx.fillText(food.emoji, food.x * gridSize + 2, food.y * gridSize + 14);
       }
 
       // Всплывающие очки
       popups.forEach((p, i) => {
-        ctx.fillStyle = `rgba(${p.color === "yellow" ? "255,255,0" : "255,255,255"}, ${p.alpha})`;
+        ctx.fillStyle = `rgba(${p.color === "yellow" ? "255,255,0" : "0,255,0"}, ${p.alpha})`;
         ctx.font = "bold 16px Arial";
         ctx.fillText(p.text, p.x, p.y);
         p.y += p.dy;
-        p.alpha -= 0.03;
+        p.alpha -= 0.02;
         if (p.alpha <= 0) popups.splice(i, 1);
       });
+
+      // Эффект поедания
+      eatEffects.forEach((e, i) => {
+        ctx.fillStyle = `rgba(255, 255, 0, ${e.alpha})`;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+        ctx.fill();
+        e.x += e.dx;
+        e.y += e.dy;
+        e.alpha -= 0.03;
+        if (e.alpha <= 0) eatEffects.splice(i, 1);
+      });
+
+      // Анимация уровня
+      if (celebration) {
+        ctx.fillStyle = `rgba(255, 215, 0, ${celebration.alpha})`;
+        ctx.font = "bold 24px Arial";
+        const w = ctx.measureText(celebration.text).width;
+        ctx.fillText(celebration.text, (canvas.width - w) / 2, 150);
+        if (celebration.alpha > 0) celebration.alpha -= 0.01;
+      }
     }
 
     function setDir(x, y) {
@@ -230,13 +325,15 @@
     function gameLoop() {
       if (!gameRunning) return;
 
-      const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+      let head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-      if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
-        gameOver();
-        return;
-      }
+      // Проход сквозь стену
+      if (head.x < 0) head.x = tileCount - 1;
+      if (head.x >= tileCount) head.x = 0;
+      if (head.y < 0) head.y = tileCount - 1;
+      if (head.y >= tileCount) head.y = 0;
 
+      // Самопересечение
       for (let part of snake) {
         if (part.x === head.x && part.y === head.y) {
           gameOver();
@@ -250,8 +347,15 @@
         const points = food.points;
         score += points;
         scoreDisplay.textContent = `Очки: ${score}`;
-        addPopup(head.x, head.y, `+${points}`, points === 20 ? "yellow" : "white");
+        playSound();
+        addPopup(head.x, head.y, `+${points}`, points >= 20 ? "yellow" : "green");
+        addEatEffect(head.x, head.y);
         placeFood();
+
+        // Анимация каждые 100 очков
+        if (score % 100 === 0 && score <= 1000) {
+          startCelebration();
+        }
       } else {
         snake.pop();
       }
@@ -265,18 +369,20 @@
 
       if (score > bestScore) {
         bestScore = score;
-        localStorage.setItem("snakeBest", bestScore);
+        localStorage.setItem("spaceSnakeBest", bestScore);
         bestDisplay.textContent = `Рекорд: ${bestScore} 🌟`;
       }
 
+      drawSpace();
       ctx.fillStyle = "rgba(0,0,0,0.8)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "red";
       ctx.font = "30px Arial";
-      ctx.fillText("ПОТРАЧЕНО!", 60, 140);
+      ctx.fillText("МИССИЯ", 80, 130);
+      ctx.fillText("ЗАВЕРШЕНА", 60, 170);
       ctx.fillStyle = "white";
       ctx.font = "20px Arial";
-      ctx.fillText(`Очки: ${score}`, 100, 180);
+      ctx.fillText(`Очки: ${score}`, 100, 210);
     }
 
     function restart() {
@@ -288,21 +394,18 @@
       gameRunning = false;
       gameStarted = false;
       popups = [];
+      eatEffects = [];
+      celebration = null;
       placeFood();
       draw();
       showStartAnimation();
     }
 
-    // Старт — с защитой
+    // Старт
     window.addEventListener('load', () => {
-      try {
-        placeFood();
-        draw();
-        showStartAnimation();
-      } catch (e) {
-        console.error("Ошибка при запуске:", e);
-        alert("Ошибка в игре. Проверь консоль.");
-      }
+      placeFood();
+      draw();
+      showStartAnimation();
     });
   </script>
 </body>
